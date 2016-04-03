@@ -1,0 +1,21 @@
+{
+  "name": "be",
+  "version": "1.0.0",
+  "description": "reactive twitter stream (backend)",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Pavlo Bogomolenko",
+  "license": "ISC",
+  "dependencies": {
+    "bunyan": "^1.8.0",
+    "io": "^0.1.10",
+    "lodash": "^4.6.1",
+    "node-tweet-stream": "^1.10.0",
+    "request": "^2.69.0",
+    "rx": "^4.1.0",
+    "socket.io": "^1.4.5",
+    "split": "^1.0.0"
+  }
+}
