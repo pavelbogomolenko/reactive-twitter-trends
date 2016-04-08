@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <title>Realtime Twitter Trends World Map</title>
+
+    <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet/v0.7.7/leaflet.css" />
+    <style>
+
+        body {
+            padding: 0;
+            margin: 0;
+        }
+        html, body, #mapid {
+            height: 100%;
+            width: 100%;
+        }
+
+        .info {
+            padding: 6px 8px;
+            font: 14px/16px Arial, Helvetica, sans-serif;
+            background: white;
+            background: rgba(255,255,255,0.8);
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            border-radius: 5px;
+        }
+
+        .info h3 {
+            margin: 0 0 5px;
+            color: #777;
+        }
+
+        .legend {
+            text-align: left;
+            line-height: 18px;
+            color: #555;
+        }
+        .legend i {
+            width: 18px;
+            height: 18px;
+            float: left;
+            margin-right: 8px;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+
+<div id="mapid"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.6.1/lodash.min.js"></script>
+<script src="http://cdn.leafletjs.com/leaflet/v0.7.7/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/1.4.5/socket.io.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/rxjs/4.1.0/rx.all.min.js"></script>
+
+<script>
+    var host = location.origin.replace(/^http/, 'ws');
+    var socket = io.connect(host);
+    var tweetMap = L.map('mapid');
+    var tweetColors = ['black', 'red', 'blue', 'green', 'yellow', 'pink', 'orange', 'violet', 'purple', 'lime', 'gold'];
+
+    L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpandmbXliNDBjZWd2M2x6bDk3c2ZtOTkifQ._QA7i5Mpkd_m30IGElHziw', {
+        minZoom: 3,
+        maxZoom: 14,
+        detectRetina: true,
+        attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, ' +
+        '<a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
+        'Imagery © <a href="http://mapbox.com">Mapbox</a>',
+        id: 'mapbox.streets'
+    }).addTo(tweetMap);
+    tweetMap.locate({setView: true, maxZoom: 3});
+
+    function addControlToMap(map, position, cls, innerHtml) {
+        var contorl = L.control({position: position});
+        contorl.onAdd = function () {
+            var div = L.DomUtil.create('div', 'info ' + cls);
+            if(innerHtml) {
+                div.innerHTML = innerHtml;
+            }
+            return div;
+        };
+        contorl.addTo(map);
+        return contorl;
+    }
+
+    var mapHeadline = addControlToMap(
+            tweetMap,
+            'topleft',
+            '',
+            '<h4>Enter your #tag to follow</h4><br/>' +
+            '<input type="text" id="hashtag" class="map-input"/>' +
+            '<button type="button" id="follow-btn">Follow!</button>'
+    );
+    var mapHeadline = addControlToMap(tweetMap, 'topright', '', '<h3>Realtime Twitter Trends World Map</h3>');
+    var legend = addControlToMap(tweetMap, 'bottomright', 'legend');
+
+    function getTweetColor(tweet, acc) {
+        var foundedTweetIndex = acc.usedHashtags.indexOf(tweet.hashtag);
+
+        if(foundedTweetIndex > -1) {
+            return acc.usedColors[foundedTweetIndex];
+        }
+
+        if (foundedTweetIndex < 0) {
+            var usedColors = _.map([acc], 'usedColors');
+            return _.find(tweetColors, function(color) {
+                return usedColors[0].indexOf(color) === -1;
+            });
+        }
+    }
+
+    function drawTweetCirle(tweet) {
+        L.circle([tweet.coordinates[0], tweet.coordinates[1]], 1000, {
+            color: tweet.color,
+            fillColor: tweet.color,
+            fillOpacity: 0.5
+        }).addTo(tweetMap);
+    }
+
+    function addTweetToLegend(tweet, legend) {
+        var labels = [];
+
+        tweet.usedHashtags.forEach(function(hashtag, index) {
+            labels.push('<i style="background:' + tweet.usedColors[index] + '"></i> ' + hashtag);
+        });
+        legend._container.innerHTML = labels.join('<br>');
+    }
+
+    socket.on('connect', function() {
+        var socketId = socket.id;
+        var hashTagInput = document.querySelector('#hashtag');
+        var followButton = document.querySelector('#follow-btn');
+
+        followButton.addEventListener('click', function() {
+            if(hashTagInput.value.length > 1) {
+                followButton.setAttribute('disabled', 'disabled');
+                hashTagInput.setAttribute('disabled', 'disabled');
+                hashTagInput.style.backgroundColor = '#f3f2f2';
+
+                console.log('user_tweet_' + socketId);
+                socket.emit('user_tweet_' + socket.id, hashTagInput.value)
+            }
+        });
+
+        var createWsTweetObservable = function(socket, socketEventName) {
+            console.log(socketEventName);
+            return Rx.Observable.create(function(observer) {
+                socket.on(socketEventName, function (data) {
+                    observer.onNext(data);
+                });
+            });
+        };
+
+        function wsTweetStream() {
+            return Rx.Observable.merge(
+                    createWsTweetObservable(socket, 'trending_tweet'),
+                    createWsTweetObservable(socket, 'custom_tweet_' + socketId))
+                    .scan(function(acc, tweet) {
+                        var color = getTweetColor(tweet, acc);
+                        return {
+                            hashtag: tweet.hashtag,
+                            color: color,
+                            coordinates: tweet.coordinates,
+                            usedColors: _.uniq(acc.usedColors.concat(color)),
+                            usedHashtags: _.uniq(acc.usedHashtags.concat(tweet.hashtag))
+                        };
+                    }, {usedColors: [], usedHashtags: []});
+        }
+
+        wsTweetStream().subscribe(function(tweet) {
+            console.log(tweet);
+            drawTweetCirle(tweet);
+            addTweetToLegend(tweet, legend);
+        });
+    });
+</script>
+
+</body>
+</html>
