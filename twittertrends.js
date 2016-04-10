@@ -12,26 +12,35 @@ class TwitterTrendsStream extends Writable {
 		this.oathCredentials = oathCredentials;
 	}
 
-	listen() {
-		request
-			.get({
-				url: this.trendsUrl,
-				oauth: this.oathCredentials
-			})
-			.on('response', response => {
-				if(response.statusCode > 200) {
-					this.emit('error', response);
-				}
-			})
-			.on('error', error => {
-				this.emit('error', error);
-			})
-			.pipe(split(JSON.parse))
-			.pipe(this);
+	listen(cb) {
+		// request
+		// 	.get({
+		// 		url: this.trendsUrl,
+		// 		oauth: this.oathCredentials
+		// 	})
+		// 	.on('response', response => {
+         //        console.log('response.statusCode', response.statusCode);
+		// 		if(response.statusCode > 200) {
+		// 			this.emit('error', response);
+		// 		}
+		// 	})
+		// 	.on('error', error => {
+		// 		this.emit('error', error);
+		// 	})
+		// 	.pipe(split(JSON.parse))
+		// 	.pipe(this);
+
+        request
+            .get({
+                url: this.trendsUrl,
+                oauth: this.oathCredentials
+            },  function (e, r, body) {
+                cb(body);
+            });
 	}
 
 	_write(chunk, enc, next) {
-		this.emit('trends', chunk);
+        this.emit('trends', chunk);
 		next();
 	}
 }

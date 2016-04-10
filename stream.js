@@ -6,34 +6,38 @@ const TwitterTweetStream = require('node-tweet-stream');
 
 const TwitterTrendsStream = require('./twittertrends');
 
-const config = {
-    consumer_key: process.env.consumer_key,
-    consumer_secret: process.env.consumer_secret,
-    token: process.env.token,
-    token_secret: process.env.token_secret
-};
-
 const getTrends = (trendsStream, logger) => Rx.Observable.create(observer => {
-        trendsStream.listen();
+        trendsStream.listen(body => {
+            try {
+                const parsedReponse = JSON.parse(body);
 
-        trendsStream.on('trends', trends => {
-            observer.onNext(trends);
+                observer.onNext(parsedReponse);
+            } catch(error) {
+                logger.warn('getTrends error', error);
+                observer.onError(error);
+            }
         });
 
-        trendsStream.on('error', error => {
-            logger.warn('getTrends error', error);
-            observer.onError(error);
-        });
+        // trendsStream.on('trends', trends => {
+        //     console.log(1);
+        //
+        //     observer.onNext(trends);
+        //     //observer.onCompleted();
+        // });
+        //
+        // trendsStream.on('error', error => {
+        //     logger.warn('getTrends error', error);
+        //     observer.onError(error);
+        // });
     })
     .concatMap(trends => Rx.Observable.from(_.get(trends, '[0].trends', []).slice(0, 2)));
 
 const trendsPolling = (trendsStream, logger) => getTrends(trendsStream, logger)
-    .merge(Rx.Observable.interval(300000) //5 min 300000
-        .flatMap(getTrends(trendsStream, logger)));
+        .merge(Rx.Observable.interval(500) //5 min 300000
+            .flatMap(getTrends(trendsStream, logger)));
 
 const observableTweet = (tweetObject, tweetStream, logger) => Rx.Observable.create(observer => {
         logger.info('tweetName', tweetObject.name);
-
         tweetStream.track(tweetObject.name);
 
         tweetStream.on('tweet', tweet => {
@@ -50,17 +54,26 @@ const observableTweet = (tweetObject, tweetStream, logger) => Rx.Observable.crea
                 logger.warn('error', 'rate limit');
             }
         });
-
     })
-    .filter(tweet => _.get(tweet, 'place') || _.get(tweet, 'coordinates'))
-    .map(tweet => ({
-        coordinates: _.get(tweet, 'place.bounding_box.coordinates[0][0]', [-1, -1]).reverse() ||
-        _.get(tweet, 'coordinates', [0, 0]).reverse(),
-        hashtag: tweetObject.name,
-        socketId: tweetObject.socketId
-    }));
+    .filter(tweet => _.get(tweet, 'place') || _.get(tweet, 'text.coordinates'))
+    .map(tweet => {
+        let coordinates;
+        if(_.get(tweet, 'place.bounding_box.coordinates[0][0]')) {
+            coordinates = _.get(tweet, 'place.bounding_box.coordinates[0][0]') || [0, 0];
+        }
 
-const observableUserHashTag = (io, logger) => Rx.Observable.create(observer => {
+        if(_.get(tweet, 'text.coordinates')) {
+            coordinates = _.get(tweet, 'text.coordinates') || [0, 0];
+        }
+
+        return {
+            coordinates: coordinates.reverse(),
+            hashtag: tweetObject.name,
+            socketId: tweetObject.socketId
+        };
+    });
+
+const observableUserHashTag = (config, io, logger) => Rx.Observable.create(observer => {
         io.on('connection', (socket) => {
             const socketId = socket.id.replace('/#', '');
             const userTweetStream = new TwitterTweetStream(config);
@@ -107,11 +120,11 @@ const unfollowAllTweetAfter = (ms, tweet) => {
             .map(emptyTweet(_.get(tweet, 'tweetStream'))));
 };
 
-const uniqueTrendingTweets = (trendsStream, tweetStream, io, logger) => trendsPolling(trendsStream, logger)
+const uniqueTrendingTweets = (trendsStream, tweetStream, logger) => trendsPolling(trendsStream, logger)
     .distinct(tweet => _.get(tweet, 'name'))
     .flatMap(tweet => observableTweet(tweet, tweetStream, logger));
 
-const userTweets = (io, logger) => observableUserHashTag(io, logger)
+const userTweets = (config, io, logger) => observableUserHashTag(config, io, logger)
     .flatMap(tweet => unfollowAllTweetAfter(60000, tweet))
     .filter(tweet => {
         if(tweet.name === '') {
@@ -126,20 +139,22 @@ const userTweets = (io, logger) => observableUserHashTag(io, logger)
     .distinct(tweet => _.get(tweet, 'name'))
     .flatMap(tweet => observableTweet(tweet, _.get(tweet, 'tweetStream'), logger));
 
-module.exports = (io, logger) => {
+module.exports = (config, io, logger) => {
     const tweetStream = new TwitterTweetStream(config);
+    tweetStream.timeoutInterval = 0;
     const trendsStream = new TwitterTrendsStream(config);
 
-    const trends = uniqueTrendingTweets(trendsStream, tweetStream, io, logger);
-
+    const trends = uniqueTrendingTweets(trendsStream, tweetStream, logger);
     trends.subscribe(tweet => {
         logger.info('trending_tweet', tweet);
         io.emit('trending_tweet', tweet);
     });
 
-    const userCustomTweets = userTweets(io, logger);
-    userCustomTweets.subscribe(tweet => {
-        logger.info(`custom_tweet_${tweet.socketId}`, tweet);
-        io.emit(`custom_tweet_${tweet.socketId}`, tweet);
-    });
+    // const userCustomTweets = userTweets(config, io, logger);
+    // userCustomTweets.subscribe(tweet => {
+    //     logger.info(`custom_tweet_${tweet.socketId}`, tweet);
+    //     io.emit(`custom_tweet_${tweet.socketId}`, tweet);
+    // });
+
+    return trends;
 };

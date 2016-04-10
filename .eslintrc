@@ -1,9 +1,18 @@
 {
-  "parserOptions": {
-    "ecmaVersion": 6,
-    "sourceType": "module"
+  "env": {
+    "es6": true,
+    "node": true,
+    "mocha": true
   },
   "rules": {
-    "semi": 2
+    "semi": 2,
+    "no-unused-expressions": 2,
+    "no-unused-vars": [2, {"vars": "all", "args": "after-used"}],
+    "no-use-before-define": 0,
+    "no-useless-call": 2,
+    "no-var": 0,
+    "no-trailing-spaces": 2,
+    "quotes": [2, "single"],
+    "no-param-reassign": ["error", {"props": true}]
   }
 }
