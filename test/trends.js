@@ -19,7 +19,7 @@ const subscribe = Rx.ReactiveTest.subscribe;
 
 const trends = require('../stream');
 
-describe('trends', function() {
+describe.skip('trends', function() {
     const config = {
         consumer_key: 'process.env.consumer_key',
         consumer_secret: 'process.env.consumer_secret',
