@@ -7,17 +7,11 @@ const sinon = require('sinon');
 const TestScheduler = Rx.TestScheduler;
 const onNext = Rx.ReactiveTest.onNext;
 
-const expect = require('./chai').expect;
+const expect = require('./../../chai').expect;
 
-const trends = require('../trends2');
+const trends = require('../../../service/twitter/trends');
 
 describe.only('trends2', function() {
-    const config = {
-        consumer_key: 'process.env.consumer_key',
-        consumer_secret: 'process.env.consumer_secret',
-        token: 'process.env.token',
-        token_secret: 'process.env.token_secret'
-    };
     const io = {
         emit: sinon.spy(),
         on: sinon.spy()
@@ -66,7 +60,7 @@ describe.only('trends2', function() {
         );
 
         const results = scheduler.startScheduler(
-            () => trends(config, io, logger, trendsObservable, tweetObservable, scheduler),
+            () => trends(io, logger, trendsObservable, tweetObservable, scheduler),
             {
                 created: 0,
                 subscribed: 200,
@@ -110,7 +104,7 @@ describe.only('trends2', function() {
                             promoted_content: null,
                             query: '%23GanaPuntosSi',
                             url: 'http://twitter.com/search/?q=%23GanaPuntosSi'
-                        },
+                        }
                     ]
                 }
             ])
@@ -123,7 +117,7 @@ describe.only('trends2', function() {
         );
 
         const results = scheduler.startScheduler(
-            () => trends(config, io, logger, trendsObservable, tweetObservable, scheduler),
+            () => trends(io, logger, trendsObservable, tweetObservable, scheduler),
             {
                 created: 0,
                 subscribed: 200,
@@ -184,7 +178,7 @@ describe.only('trends2', function() {
         );
 
         const results = scheduler.startScheduler(
-            () => trends(config, io, logger, trendsObservable, tweetObservable, scheduler),
+            () => trends(io, logger, trendsObservable, tweetObservable, scheduler),
             {
                 created: 0,
                 subscribed: 200,

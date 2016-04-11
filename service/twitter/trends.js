@@ -10,7 +10,7 @@ const trendsPolling = (trendsObservable, scheduler) => getTrends(trendsObservabl
         .merge(Rx.Observable.interval(300000, scheduler)
             .flatMap(getTrends(trendsObservable)));
 
-const observableTweet = (tweetObject, tweetObservable) => tweetObservable(tweetObject)
+const getTweet = (tweetObject, tweetObservable) => tweetObservable(tweetObject)
     .filter(tweet => _.get(tweet, 'place') || _.get(tweet, 'coordinates'))
     .map(tweet => {
         let coordinates;
@@ -31,14 +31,13 @@ const observableTweet = (tweetObject, tweetObservable) => tweetObservable(tweetO
 
 const trendingTweets = (trendsObservable, tweetObservable, scheduler) => trendsPolling(trendsObservable, scheduler)
     .distinct(tweet => _.get(tweet, 'name'))
-    .flatMap(tweet => observableTweet(tweet, tweetObservable));
+    .flatMap(tweet => getTweet(tweet, tweetObservable));
 
 module.exports = (io, logger, trendsObservable, tweetObservable, scheduler) => {
     const trends = trendingTweets(trendsObservable, tweetObservable, scheduler);
     trends.subscribe(tweet => {
-        logger.info('trending_tweet', tweet);
-        io.emit('trending_tweet', tweet);
-    });
-
+            logger.info('trending_tweet', tweet);
+            io.emit('trending_tweet', tweet);
+        });
     return trends;
 };
