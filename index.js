@@ -6,5 +6,7 @@ const logger = bunyan.createLogger({
 	'level': 'info'
 });
 
+const config = require('./config');
 const io = require('./server');
-require('./stream')(io, logger);
+
+require('./service/twitter')(config, io, logger);
