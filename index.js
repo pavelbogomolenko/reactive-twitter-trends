@@ -8,4 +8,5 @@ const logger = bunyan.createLogger({
 
 const config = require('./config');
 const io = require('./server');
-require('./stream')(config, io, logger);
+
+require('./service/twitter')(config, io, logger);
