@@ -137,7 +137,7 @@ describe('trendsStream', () => {
             socketId: undefined });
     });
 
-    it('should request more userTagStream in 300000 ms', () => {
+    it('should request more trends after 300000 ms', () => {
         const scheduler = new TestScheduler();
 
         const trendsObservable = scheduler.createColdObservable(
