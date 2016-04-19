@@ -21,10 +21,6 @@ describe('userTagStream', () => {
         warn: _.noop
     };
 
-    beforeEach(() => {
-
-    });
-
     it('should follow user custom tag', () => {
         const scheduler = new TestScheduler();
 

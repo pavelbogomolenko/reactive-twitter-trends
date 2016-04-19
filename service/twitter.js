@@ -16,7 +16,7 @@ module.exports = (config, io, logger) => {
     const trends = new Trends(config);
     const ts = new TwitterTweetStream(config);
 
-    trendsStream(io, logger, trendsObservable(trends, logger), _.partial(tweetObservable, ts, logger));
+    trendsStream(io, logger, trendsObservable(trends, logger), _.partial(tweetObservable, ts, logger), ts);
 
     userTagStream(io, logger, tweetObservable, userTagObservable(config, io, logger));
 };

@@ -5,19 +5,31 @@ const Rx = require('rx');
 
 const filterGeoTweet = require('./filterGeoTweet');
 
-const getTrends = (trendsObservable) => trendsObservable
-    .concatMap(trends => Rx.Observable.from(_.get(trends, '[0].trends', []).slice(0, 2)));
+const getTrends = (trendsObservable, tweetStream, logger, scheduler) => trendsObservable
+    .concatMap(trends => Rx.Observable.from(_.get(trends, '[0].trends', []).slice(0, 5)))
+    .flatMap(tweet => {
+        return Rx.Observable.return(tweet).merge(
+            Rx.Observable.return(tweet)
+                .delay(300000, scheduler)
+                .filter(tweet => {
+                    tweetStream.untrack(tweet.name);
+                    logger.info(tweet.name, 'unfollow trending tag');
+                    return false;
+                })
+        );
+    });
 
-const trendsPolling = (trendsObservable, scheduler) => getTrends(trendsObservable)
-    .merge(Rx.Observable.interval(300000, scheduler)
-        .flatMap(getTrends(trendsObservable)));
+const trendsPolling = (trendsObservable, tweetStream, logger, scheduler) =>
+    getTrends(trendsObservable, tweetStream, logger, scheduler)
+        .merge(Rx.Observable.interval(300300, scheduler)
+            .flatMap(getTrends(trendsObservable)));
 
-const trendingTweets = (trendsObservable, tweetObservable, scheduler) => trendsPolling(trendsObservable, scheduler)
-    .distinct(tweet => _.get(tweet, 'name'))
-    .flatMap(tweet => filterGeoTweet(tweet, tweetObservable));
+const trendingTweets = (trendsObservable, tweetObservable, tweetStream, logger, scheduler) =>
+    trendsPolling(trendsObservable, tweetStream, logger, scheduler)
+        .flatMap(tweet => filterGeoTweet(tweet, tweetObservable));
 
-module.exports = (io, logger, trendsObservable, tweetObservable, scheduler) => {
-    const trends = trendingTweets(trendsObservable, tweetObservable, scheduler || null);
+module.exports = (io, logger, trendsObservable, tweetObservable, tweetStream, scheduler) => {
+    const trends = trendingTweets(trendsObservable, tweetObservable, tweetStream, logger, scheduler || Rx.Scheduler.default);
     trends.subscribe(tweet => {
         logger.info(tweet, 'trending_tweet');
         io.emit('trending_tweet', tweet);

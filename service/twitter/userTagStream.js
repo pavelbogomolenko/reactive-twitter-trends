@@ -6,11 +6,13 @@ const Rx = require('rx');
 const filterGeoTweet = require('./filterGeoTweet');
 
 const unfollowTweet = (tweet, logger, scheduler) => Rx.Observable.return(tweet)
-    .merge(Rx.Observable.interval(300000, scheduler)
-        .map(({
-            name: '',
-            tweetStream:  _.get(tweet, 'tweetStream')
-        })))
+    .merge(
+        Rx.Observable.empty().delay(300000, scheduler)
+            .map(({
+                name: '',
+                tweetStream:  _.get(tweet, 'tweetStream')
+            }))
+    )
     .filter(tweet => {
         if(tweet.name === '') {
             logger.info('unfollow user tag');
@@ -21,7 +23,8 @@ const unfollowTweet = (tweet, logger, scheduler) => Rx.Observable.return(tweet)
         }
 
         return tweet.name !== '';
-    });
+    })
+    .repeat(-1, scheduler);
 
 const userTweets = (tweetObservable, userTagObservable, logger, scheduler) => userTagObservable
     .flatMap(tweet => unfollowTweet(tweet, logger, scheduler))
