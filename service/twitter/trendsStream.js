@@ -23,11 +23,12 @@ const getTrends = (trendsObservable, tweetStream, logger, scheduler) => trendsOb
 const trendsPolling = (trendsObservable, tweetStream, logger, scheduler) =>
     getTrends(trendsObservable, tweetStream, logger, scheduler)
         .merge(Rx.Observable.interval(300300, scheduler)
-            .flatMap(getTrends(trendsObservable)));
+            .flatMap(getTrends(trendsObservable, tweetStream, logger, scheduler)));
 
 const trendingTweets = (trendsObservable, tweetObservable, tweetStream, logger, scheduler) =>
     trendsPolling(trendsObservable, tweetStream, logger, scheduler)
-        .flatMap(tweet => filterGeoTweet(tweet, tweetObservable));
+        .flatMap(tweet => filterGeoTweet(tweet, tweetObservable))
+        .distinct(tweet => tweet.id);
 
 module.exports = (io, logger, trendsObservable, tweetObservable, tweetStream, scheduler) => {
     const trends = trendingTweets(trendsObservable, tweetObservable, tweetStream, logger, scheduler || Rx.Scheduler.default);
