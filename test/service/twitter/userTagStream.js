@@ -10,6 +10,9 @@ const onCompleted = Rx.ReactiveTest.onCompleted;
 const expect = require('./../../chai').expect;
 
 const userTagStream = require('../../../service/twitter/userTagStream');
+const buildTweet = require('./builder').buildTweet;
+const getExpectedResultByTrendIndex = require('./builder').getExpectedResultByTrendIndex;
+const buildUserTagResponse = require('./builder').buildUserTagResponse;
 
 describe('userTagStream', () => {
     const io = {
@@ -25,23 +28,12 @@ describe('userTagStream', () => {
         const scheduler = new TestScheduler();
 
         const userTagObservable = scheduler.createHotObservable(
-            onNext(100, {
-                name: '#sometag',
-                tweetStream: {
-                    untrackAll: _.noop,
-                    abort: _.noop
-                },
-                socketId: 'socketid-1234'
-            }),
+            onNext(100, buildUserTagResponse('#sometag')),
             onCompleted(1000)
         );
 
         const tweetObservable = () => scheduler.createHotObservable(
-            onNext(100, {
-                coordinates: {
-                    coordinates: [12, 11]
-                }
-            }),
+            onNext(100, buildTweet('#sometag', '2ds1')),
             onCompleted(1000)
         );
 
@@ -59,65 +51,68 @@ describe('userTagStream', () => {
         );
 
         expect(results.messages.length).to.be.equal(1);
-
-        expect(results.messages[0].value.value).to.be.deep.equal({ coordinates: [ 11, 12 ],
-            hashtag: '#sometag',
-            socketId: 'socketid-1234' });
+        expect(results.messages[0].value.value).to.be.deep.equal(getExpectedResultByTrendIndex(
+            0,
+            '2ds1',
+            '#sometag',
+            buildUserTagResponse('#sometag').socketId
+        ));
     });
 
-    it('should follow 2 user custom tag', () => {
+    it('should listen for next socket opened', (done) => {
         const scheduler = new TestScheduler();
 
         const userTagObservable = scheduler.createHotObservable(
-            onNext(100, {
-                name: '#sometag',
-                tweetStream: {
-                    untrackAll: _.noop,
-                    abort: _.noop
-                },
-                socketId: 'socketid-1234'
-            }),
-            onNext(300000, {
-                name: '#anothertag',
-                tweetStream: {
-                    untrackAll: _.noop,
-                    abort: _.noop
-                },
-                socketId: 'socketid-1235'
-            }),
-            onCompleted(300100)
+            onNext(100, buildUserTagResponse('#sometag', 'socId1')),
+            onCompleted(300150, buildUserTagResponse('#another', 'socId1'))
         );
 
-        const tweetObservable = () => scheduler.createHotObservable(
-            onNext(100, {
-                coordinates: {
-                    coordinates: [12, 11]
-                }
-            }),
-            onCompleted(300100)
+        const tweetObservable = () => scheduler.createColdObservable(
+            onNext(150, buildTweet('#sometag', '2ds1')),
+            onNext(300150, buildTweet('#another', '2ds2')),
+            onCompleted(300250)
         );
 
-        const interval = () => scheduler.createHotObservable(
-            onCompleted(300000)
-        );
+        const observer = scheduler.createObserver();
+        let source;
+        let subscription;
 
-        const results = scheduler.startScheduler(
-            () => userTagStream(io, logger, tweetObservable, userTagObservable, interval),
-            {
-                created: 0,
-                subscribed: 0,
-                disposed: 300200
-            }
-        );
+        scheduler.scheduleAbsolute(null, 0, function() {
+            source = userTagStream(io, logger, tweetObservable, userTagObservable, scheduler);
+            subscription = source.subscribe(observer);
+        });
 
-        expect(results.messages.length).to.be.equal(2);
+        scheduler.scheduleAbsolute(null, 290000, function() {
+            expect(observer.messages.length).to.be.equal(1);
 
-        expect(results.messages[0].value.value).to.be.deep.equal({ coordinates: [ 11, 12 ],
-            hashtag: '#sometag',
-            socketId: 'socketid-1234' });
+            expect(observer.messages[0].value.value).to.be.deep.equal(getExpectedResultByTrendIndex(
+                0,
+                '2ds1',
+                '#sometag',
+                'socId1'
+            ));
+        });
 
-        expect(results.messages[1].value.value).to.be.deep.equal({ coordinates: [ 11, 12 ],
-            hashtag: '#anothertag',
-            socketId: 'socketid-1235' });
+        scheduler.scheduleAbsolute(null, 300300, function() {
+            expect(observer.messages[0].value.value).to.be.deep.equal(getExpectedResultByTrendIndex(
+                0,
+                '2ds1',
+                '#sometag',
+                'socId1'
+            ));
+            expect(observer.messages[1].value.value).to.be.deep.equal(getExpectedResultByTrendIndex(
+                1,
+                '2ds2',
+                '#another',
+                'socId1'
+            ));
+
+            subscription.dispose();
+            scheduler.stop();
+
+            done();
+        });
+
+        scheduler.start();
     });
 });
