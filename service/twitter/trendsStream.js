@@ -6,7 +6,8 @@ const Rx = require('rx');
 const filterGeoTweet = require('./filterGeoTweet');
 
 const getTrends = (trendsObservable, tweetStream, logger, scheduler) => trendsObservable
-    .concatMap(trends => Rx.Observable.from(_.get(trends, '[0].trends', []).slice(0, 5)))
+    .concatMap(trends => Rx.Observable.from(_.get(trends, '[0].trends', [])))
+    .take(5)
     .flatMap(tweet => {
         return Rx.Observable.return(tweet).merge(
             Rx.Observable.return(tweet)
