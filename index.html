@@ -104,19 +104,19 @@
         }
 
         if (foundedTweetIndex < 0) {
-            var usedColors = _.map([acc], 'usedColors');
             return _.find(tweetColors, function(color) {
-                return usedColors[0].indexOf(color) === -1;
+                return acc.usedColors.indexOf(color) === -1;
             });
         }
     }
 
+    var tweetList = document.getElementById('tweetList');
     function drawTweetCirle(tweet) {
-        L.circle([tweet.coordinates[0], tweet.coordinates[1]], 1000, {
+        L.circle([tweet.coordinates[1], tweet.coordinates[0]], 1000, {
             color: tweet.color,
             fillColor: tweet.color,
             fillOpacity: 0.5
-        }).addTo(tweetMap);
+        }).addTo(tweetMap).bindPopup(tweet.hashtag + " " + tweet.coordinates);
     }
 
     function addTweetToLegend(tweet, legend) {
@@ -167,10 +167,11 @@
                             usedHashtags: _.uniq(acc.usedHashtags.concat(tweet.hashtag))
                         };
                     }, {usedColors: [], usedHashtags: []});
+//                    .bufferWithCount(10)
+//                    .debounce(5000);
         }
 
-        wsTweetStream().subscribe(function(tweet) {
-            console.log(tweet);
+        wsTweetStream().subscribe(function (tweet) {
             drawTweetCirle(tweet);
             addTweetToLegend(tweet, legend);
         });
